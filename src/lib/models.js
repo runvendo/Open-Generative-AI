@@ -7999,3 +7999,18 @@ export const getMaxImagesForI2IModel = (modelId) => {
     const model = getI2IModelById(modelId);
     return model?.maxImages || 1;
 };
+
+// ─── Video-to-Video models ────────────────────────────────────────────────────
+export const v2vModels = [
+  {
+    "id": "video-watermark-remover",
+    "name": "AI Video Watermark Remover",
+    "endpoint": "video-watermark-remover",
+    "family": "tools",
+    "videoField": "video_url",
+    "hasPrompt": false,
+    "description": "Remove watermarks, logos, captions, and unwanted text from videos."
+  }
+];
+
+export const getV2VModelById = (id) => v2vModels.find(m => m.id === id);

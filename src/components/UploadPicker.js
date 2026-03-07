@@ -395,5 +395,12 @@ export function createUploadPicker({ anchorContainer, onSelect, onClear, maxImag
 
     const getSelectedUrls = () => selectedEntries.map(e => e.url);
 
-    return { trigger, panel, reset, setMaxImages, getSelectedUrls };
+    // Programmatically select an image (e.g. for demo mode) without uploading
+    const setImage = (url, thumbnail) => {
+        selectedEntries = [{ url, thumbnail: thumbnail || url }];
+        updateTrigger();
+        fireOnSelect();
+    };
+
+    return { trigger, panel, reset, setMaxImages, getSelectedUrls, setImage };
 }

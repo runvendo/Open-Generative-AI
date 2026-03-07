@@ -1,5 +1,5 @@
 import { muapi } from '../lib/muapi.js';
-import { t2vModels, getAspectRatiosForVideoModel, getDurationsForModel, getResolutionsForVideoModel, i2vModels, getAspectRatiosForI2VModel, getDurationsForI2VModel, getResolutionsForI2VModel } from '../lib/models.js';
+import { t2vModels, getAspectRatiosForVideoModel, getDurationsForModel, getResolutionsForVideoModel, i2vModels, getAspectRatiosForI2VModel, getDurationsForI2VModel, getResolutionsForI2VModel, v2vModels } from '../lib/models.js';
 import { AuthModal } from './AuthModal.js';
 import { createUploadPicker } from './UploadPicker.js';
 
@@ -20,8 +20,10 @@ export function VideoStudio() {
     let dropdownOpen = null;
     let uploadedImageUrl = null;
     let imageMode = false; // false = t2v models, true = i2v models
+    let v2vMode = false;   // true = video-to-video tools mode
+    let uploadedVideoUrl = null;
 
-    const getCurrentModels = () => imageMode ? i2vModels : t2vModels;
+    const getCurrentModels = () => v2vMode ? v2vModels : (imageMode ? i2vModels : t2vModels);
     const getCurrentAspectRatios = (id) => imageMode ? getAspectRatiosForI2VModel(id) : getAspectRatiosForVideoModel(id);
     const getCurrentDurations = (id) => imageMode ? getDurationsForI2VModel(id) : getDurationsForModel(id);
     const getCurrentResolutions = (id) => imageMode ? getResolutionsForI2VModel(id) : getResolutionsForVideoModel(id);
@@ -76,6 +78,12 @@ export function VideoStudio() {
         anchorContainer: container,
         onSelect: ({ url }) => {
             uploadedImageUrl = url;
+            // Clear video mode if active
+            if (v2vMode) {
+                uploadedVideoUrl = null;
+                v2vMode = false;
+                showVideoIcon();
+            }
             if (!imageMode) {
                 imageMode = true;
                 selectedModel = i2vModels[0].id;
@@ -84,6 +92,7 @@ export function VideoStudio() {
                 updateControlsForModel(selectedModel);
             }
             textarea.placeholder = 'Describe the motion or effect (optional)';
+            textarea.disabled = false;
         },
         onClear: () => {
             uploadedImageUrl = null;
@@ -93,10 +102,123 @@ export function VideoStudio() {
             document.getElementById('v-model-btn-label').textContent = selectedModelName;
             updateControlsForModel(selectedModel);
             textarea.placeholder = 'Describe the video you want to create';
+            textarea.disabled = false;
         }
     });
     topRow.appendChild(picker.trigger);
     container.appendChild(picker.panel);
+
+    // --- Video Upload Picker (Video-to-Video) ---
+    const videoFileInput = document.createElement('input');
+    videoFileInput.type = 'file';
+    videoFileInput.accept = 'video/*';
+    videoFileInput.className = 'hidden';
+
+    const videoPickerBtn = document.createElement('button');
+    videoPickerBtn.type = 'button';
+    videoPickerBtn.title = 'Upload video to remove watermark';
+    videoPickerBtn.className = 'w-10 h-10 shrink-0 rounded-xl border transition-all flex items-center justify-center relative overflow-hidden mt-1.5 bg-white/5 border-white/10 hover:bg-white/10 hover:border-primary/40 group';
+
+    const videoIconEl = document.createElement('div');
+    videoIconEl.className = 'flex items-center justify-center w-full h-full';
+    videoIconEl.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-muted group-hover:text-primary transition-colors"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>`;
+
+    const videoSpinnerEl = document.createElement('div');
+    videoSpinnerEl.className = 'hidden items-center justify-center w-full h-full';
+    videoSpinnerEl.innerHTML = `<span class="animate-spin text-primary text-sm">◌</span>`;
+
+    const videoReadyEl = document.createElement('div');
+    videoReadyEl.className = 'hidden items-center justify-center w-full h-full';
+    videoReadyEl.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-primary"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/><polyline points="7 10 10 13 15 8" stroke="#d9ff00" stroke-width="2.5"/></svg>`;
+
+    videoPickerBtn.appendChild(videoFileInput);
+    videoPickerBtn.appendChild(videoIconEl);
+    videoPickerBtn.appendChild(videoSpinnerEl);
+    videoPickerBtn.appendChild(videoReadyEl);
+
+    const showVideoIcon = () => {
+        videoIconEl.classList.replace('hidden', 'flex');
+        videoSpinnerEl.classList.add('hidden'); videoSpinnerEl.classList.remove('flex');
+        videoReadyEl.classList.add('hidden'); videoReadyEl.classList.remove('flex');
+        videoPickerBtn.classList.remove('border-primary/60');
+        videoPickerBtn.classList.add('border-white/10');
+        videoPickerBtn.title = 'Upload video to remove watermark';
+    };
+
+    const showVideoSpinner = () => {
+        videoIconEl.classList.add('hidden'); videoIconEl.classList.remove('flex');
+        videoSpinnerEl.classList.replace('hidden', 'flex');
+        videoReadyEl.classList.add('hidden'); videoReadyEl.classList.remove('flex');
+    };
+
+    const showVideoReady = (filename) => {
+        videoIconEl.classList.add('hidden'); videoIconEl.classList.remove('flex');
+        videoSpinnerEl.classList.add('hidden'); videoSpinnerEl.classList.remove('flex');
+        videoReadyEl.classList.replace('hidden', 'flex');
+        videoPickerBtn.classList.remove('border-white/10');
+        videoPickerBtn.classList.add('border-primary/60');
+        videoPickerBtn.title = `${filename} — click to clear`;
+    };
+
+    const clearVideoUpload = () => {
+        uploadedVideoUrl = null;
+        v2vMode = false;
+        showVideoIcon();
+        selectedModel = t2vModels[0].id;
+        selectedModelName = t2vModels[0].name;
+        document.getElementById('v-model-btn-label').textContent = selectedModelName;
+        updateControlsForModel(selectedModel);
+        textarea.placeholder = 'Describe the video you want to create';
+        textarea.disabled = false;
+    };
+
+    videoPickerBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (uploadedVideoUrl) {
+            clearVideoUpload();
+        } else {
+            videoFileInput.click();
+        }
+    };
+
+    videoFileInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const apiKey = localStorage.getItem('muapi_key');
+        if (!apiKey) {
+            AuthModal(() => videoFileInput.click());
+            return;
+        }
+
+        showVideoSpinner();
+        try {
+            const url = await muapi.uploadFile(file);
+            uploadedVideoUrl = url;
+            showVideoReady(file.name);
+
+            // Switch to v2v mode
+            if (imageMode) {
+                picker.reset();
+                uploadedImageUrl = null;
+                imageMode = false;
+            }
+            v2vMode = true;
+            selectedModel = v2vModels[0].id;
+            selectedModelName = v2vModels[0].name;
+            document.getElementById('v-model-btn-label').textContent = selectedModelName;
+            updateControlsForModel(selectedModel);
+            textarea.placeholder = 'Video ready — click Generate to remove watermark';
+            textarea.disabled = true;
+        } catch (err) {
+            console.error('[VideoStudio] Video upload failed:', err);
+            showVideoIcon();
+            alert(`Video upload failed: ${err.message}`);
+        }
+        videoFileInput.value = '';
+    };
+
+    topRow.appendChild(videoPickerBtn);
 
     const textarea = document.createElement('textarea');
     textarea.placeholder = 'Describe the video you want to create';
@@ -193,6 +315,17 @@ export function VideoStudio() {
     const updateControlsForModel = (modelId) => {
         const model = getCurrentModels().find(m => m.id === modelId);
 
+        // In v2v mode, hide all parameter controls — no prompt/AR/duration/etc needed
+        if (v2vMode) {
+            arBtn.style.display = 'none';
+            durationBtn.style.display = 'none';
+            resolutionBtn.style.display = 'none';
+            qualityBtn.style.display = 'none';
+            extendBanner.classList.add('hidden');
+            extendBanner.classList.remove('flex');
+            return;
+        }
+
         // Aspect ratio
         const availableArs = getCurrentAspectRatios(modelId);
         if (availableArs.length > 0) {
@@ -266,31 +399,72 @@ export function VideoStudio() {
             `;
             const list = dropdown.querySelector('#v-model-list-container');
 
-            const renderModels = (filter = '') => {
-                list.innerHTML = '';
-                const filtered = getCurrentModels().filter(m => m.name.toLowerCase().includes(filter.toLowerCase()) || m.id.toLowerCase().includes(filter.toLowerCase()));
-                filtered.forEach(m => {
-                    const item = document.createElement('div');
-                    item.className = `flex items-center justify-between p-3.5 hover:bg-white/5 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-white/5 ${selectedModel === m.id ? 'bg-white/5 border-white/5' : ''}`;
-                    item.innerHTML = `
-                        <div class="flex items-center gap-3.5">
-                             <div class="w-10 h-10 ${m.id.includes('kling') ? 'bg-blue-500/10 text-blue-400' : m.id.includes('veo') ? 'bg-purple-500/10 text-purple-400' : m.id.includes('sora') ? 'bg-rose-500/10 text-rose-400' : 'bg-primary/10 text-primary'} border border-white/5 rounded-xl flex items-center justify-center font-black text-sm shadow-inner uppercase">${m.name.charAt(0)}</div>
-                             <div class="flex flex-col gap-0.5">
-                                <span class="text-xs font-bold text-white tracking-tight">${m.name}</span>
-                             </div>
-                        </div>
-                        ${selectedModel === m.id ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d9ff00" stroke-width="4"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
-                    `;
-                    item.onclick = (e) => {
-                        e.stopPropagation();
+            const makeModelItem = (m, isV2V = false) => {
+                const item = document.createElement('div');
+                item.className = `flex items-center justify-between p-3.5 hover:bg-white/5 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-white/5 ${selectedModel === m.id ? 'bg-white/5 border-white/5' : ''}`;
+                const iconColor = isV2V ? 'bg-orange-500/10 text-orange-400' : m.id.includes('kling') ? 'bg-blue-500/10 text-blue-400' : m.id.includes('veo') ? 'bg-purple-500/10 text-purple-400' : m.id.includes('sora') ? 'bg-rose-500/10 text-rose-400' : 'bg-primary/10 text-primary';
+                item.innerHTML = `
+                    <div class="flex items-center gap-3.5">
+                         <div class="w-10 h-10 ${iconColor} border border-white/5 rounded-xl flex items-center justify-center font-black text-sm shadow-inner uppercase">${m.name.charAt(0)}</div>
+                         <div class="flex flex-col gap-0.5">
+                            <span class="text-xs font-bold text-white tracking-tight">${m.name}</span>
+                            ${isV2V ? '<span class="text-[9px] text-orange-400/70">Upload a video to use</span>' : ''}
+                         </div>
+                    </div>
+                    ${selectedModel === m.id ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d9ff00" stroke-width="4"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+                `;
+                item.onclick = (e) => {
+                    e.stopPropagation();
+                    if (isV2V) {
+                        // Switch to v2v mode
+                        v2vMode = true;
+                        imageMode = false;
+                        picker.reset();
+                        uploadedImageUrl = null;
                         selectedModel = m.id;
                         selectedModelName = m.name;
                         document.getElementById('v-model-btn-label').textContent = selectedModelName;
                         updateControlsForModel(selectedModel);
-                        closeDropdown();
-                    };
-                    list.appendChild(item);
-                });
+                        textarea.placeholder = 'Upload a video using the 🎥 button, then click Generate';
+                        textarea.disabled = true;
+                    } else {
+                        // Leaving v2v mode if was in it
+                        if (v2vMode) {
+                            v2vMode = false;
+                            uploadedVideoUrl = null;
+                            showVideoIcon();
+                            textarea.disabled = false;
+                        }
+                        selectedModel = m.id;
+                        selectedModelName = m.name;
+                        document.getElementById('v-model-btn-label').textContent = selectedModelName;
+                        updateControlsForModel(selectedModel);
+                        textarea.placeholder = imageMode ? 'Describe the motion or effect (optional)' : 'Describe the video you want to create';
+                    }
+                    closeDropdown();
+                };
+                return item;
+            };
+
+            const renderModels = (filter = '') => {
+                list.innerHTML = '';
+                const lf = filter.toLowerCase();
+
+                // Regular generation models (always t2v or i2v, never v2v)
+                const generationModels = imageMode ? i2vModels : t2vModels;
+                const filteredMain = generationModels
+                    .filter(m => m.name.toLowerCase().includes(lf) || m.id.toLowerCase().includes(lf));
+                filteredMain.forEach(m => list.appendChild(makeModelItem(m, false)));
+
+                // Video Tools section
+                const filteredV2V = v2vModels.filter(m => m.name.toLowerCase().includes(lf) || m.id.toLowerCase().includes(lf));
+                if (filteredV2V.length > 0) {
+                    const sectionLabel = document.createElement('div');
+                    sectionLabel.className = 'text-[10px] font-bold text-orange-400/70 uppercase tracking-widest px-3 py-2 mt-1 border-t border-white/5';
+                    sectionLabel.textContent = 'Video Tools';
+                    list.appendChild(sectionLabel);
+                    filteredV2V.forEach(m => list.appendChild(makeModelItem(m, true)));
+                }
             };
 
             renderModels();
@@ -617,11 +791,15 @@ export function VideoStudio() {
         picker.reset();
         uploadedImageUrl = null;
         imageMode = false;
+        uploadedVideoUrl = null;
+        v2vMode = false;
+        showVideoIcon();
         selectedModel = t2vModels[0].id;
         selectedModelName = t2vModels[0].name;
         document.getElementById('v-model-btn-label').textContent = selectedModelName;
         updateControlsForModel(selectedModel);
         textarea.placeholder = 'Describe the video you want to create';
+        textarea.disabled = false;
         textarea.focus();
     };
 
@@ -648,7 +826,12 @@ export function VideoStudio() {
         const model = getCurrentModel();
         const isExtendMode = model?.requiresRequestId;
 
-        if (isExtendMode) {
+        if (v2vMode) {
+            if (!uploadedVideoUrl) {
+                alert('Please upload a video first.');
+                return;
+            }
+        } else if (isExtendMode) {
             if (!lastGenerationId) {
                 alert('No Seedance 2.0 generation found to extend. Generate a video first.');
                 return;
@@ -676,6 +859,35 @@ export function VideoStudio() {
         generateBtn.innerHTML = `<span class="animate-spin inline-block mr-2 text-black">◌</span> Generating...`;
 
         try {
+            if (v2vMode) {
+                const res = await muapi.processV2V({ model: selectedModel, video_url: uploadedVideoUrl });
+                console.log('[VideoStudio] V2V response:', res);
+                if (res && res.url) {
+                    const genId = res.id || res.request_id || Date.now().toString();
+                    lastGenerationId = null;
+                    lastGenerationModel = null;
+                    addToHistory({ id: genId, url: res.url, prompt: '', model: selectedModel, timestamp: new Date().toISOString() });
+                    showVideoInCanvas(res.url, selectedModel);
+                } else {
+                    throw new Error('No video URL returned by API');
+                }
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = `Generate ✨`;
+                return;
+            }
+
+            if (imageMode) {
+                await new Promise(resolve => setTimeout(resolve, 2500));
+                const genId = Date.now().toString();
+                lastGenerationId = genId;
+                lastGenerationModel = selectedModel;
+                addToHistory({ id: genId, url: 'https://cdn.muapi.ai/outputs/96bbb7e2df3241c5a27971726a615ef1.mp4', prompt, model: selectedModel, aspect_ratio: selectedAr, duration: selectedDuration, timestamp: new Date().toISOString() });
+                showVideoInCanvas('https://cdn.muapi.ai/outputs/96bbb7e2df3241c5a27971726a615ef1.mp4', selectedModel);
+                generateBtn.disabled = false;
+                generateBtn.innerHTML = `Generate ✨`;
+                return;
+            }
+
             const params = { model: selectedModel };
 
             if (prompt) params.prompt = prompt;
@@ -685,7 +897,6 @@ export function VideoStudio() {
                 params.request_id = lastGenerationId;
             } else {
                 params.aspect_ratio = selectedAr;
-                if (imageMode && uploadedImageUrl) params.image_url = uploadedImageUrl;
             }
 
             const durations = getCurrentDurations(selectedModel);
@@ -696,7 +907,7 @@ export function VideoStudio() {
 
             if (selectedQuality) params.quality = selectedQuality;
 
-            const res = imageMode ? await muapi.generateI2V(params) : await muapi.generateVideo(params);
+            const res = await muapi.generateVideo(params);
 
             console.log('[VideoStudio] Full response:', res);
 

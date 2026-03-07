@@ -1,4 +1,4 @@
-import { getModelById, getVideoModelById, getI2IModelById, getI2VModelById } from './models.js';
+import { getModelById, getVideoModelById, getI2IModelById, getI2VModelById, getV2VModelById } from './models.js';
 
 export class MuapiClient {
     constructor() {
@@ -385,6 +385,52 @@ export class MuapiClient {
         const fileUrl = data.url || data.file_url || data.data?.url;
         if (!fileUrl) throw new Error('No URL returned from file upload');
         return fileUrl;
+    }
+
+    /**
+     * Processes a video through a Video-to-Video model (e.g. watermark remover).
+     * @param {Object} params
+     * @param {string} params.model - v2vModel id
+     * @param {string} params.video_url - The uploaded video URL
+     */
+    async processV2V(params) {
+        const key = this.getKey();
+        const modelInfo = getV2VModelById(params.model);
+        const endpoint = modelInfo?.endpoint || params.model;
+        const url = `${this.baseUrl}/api/v1/${endpoint}`;
+
+        const videoField = modelInfo?.videoField || 'video_url';
+        const finalPayload = { [videoField]: params.video_url };
+
+        console.log('[Muapi] V2V Request:', url);
+        console.log('[Muapi] V2V Payload:', finalPayload);
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-api-key': key },
+                body: JSON.stringify(finalPayload)
+            });
+
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(`API Request Failed: ${response.status} ${response.statusText} - ${errText.slice(0, 100)}`);
+            }
+
+            const submitData = await response.json();
+            console.log('[Muapi] V2V Submit Response:', submitData);
+
+            const requestId = submitData.request_id || submitData.id;
+            if (!requestId) return submitData;
+
+            const result = await this.pollForResult(requestId, key, 120, 2000);
+            const videoUrl = result.outputs?.[0] || result.url || result.output?.url;
+            console.log('[Muapi] V2V Result URL:', videoUrl);
+            return { ...result, url: videoUrl };
+        } catch (error) {
+            console.error('Muapi V2V Error:', error);
+            throw error;
+        }
     }
 
     getDimensionsFromAR(ar) {

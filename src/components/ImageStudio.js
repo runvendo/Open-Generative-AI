@@ -4,6 +4,7 @@ import {
     i2iModels, getAspectRatiosForI2IModel, getResolutionsForI2IModel, getQualityFieldForI2IModel,
     getMaxImagesForI2IModel
 } from '../lib/models.js';
+import { ENHANCE_TAGS, QUICK_PROMPTS } from '../lib/promptUtils.js';
 import { AuthModal } from './AuthModal.js';
 import { createUploadPicker } from './UploadPicker.js';
 import { savePendingJob, removePendingJob, getPendingJobs } from '../lib/pendingJobs.js';
@@ -20,6 +21,25 @@ export function ImageStudio() {
     let dropdownOpen = null;
     let uploadedImageUrls = []; // array of uploaded image URLs (multi-image support)
     let imageMode = false; // false = t2i models, true = i2i models
+
+    // Advanced parameters state
+    let negativePrompt = '';
+    let guidanceScale = 7.5;
+    let steps = 25;
+    let seed = -1;
+    let showAdvanced = false;
+    let selectedStyle = 'None';
+    let batchCount = 1;
+
+    // New advanced controls
+    let customWidth = 0;  // 0 means use default (aspect ratio based)
+    let customHeight = 0;
+    let referenceStrength = 50;  // 0-100, for style reference models
+    let selectedLora = '';  // LoRA model ID from Civitai
+    let loraWeight = 1.0;
+
+    // Quick tools panel state
+    let showToolsPanel = false;
 
     const getCurrentModels = () => imageMode ? i2iModels : t2iModels;
     const getCurrentAspectRatios = (id) => imageMode ? getAspectRatiosForI2IModel(id) : getAspectRatiosForModel(id);
@@ -127,10 +147,11 @@ export function ImageStudio() {
     const controlsLeft = document.createElement('div');
     controlsLeft.className = 'flex items-center gap-1.5 md:gap-2.5 relative overflow-x-auto no-scrollbar pb-1 md:pb-0';
 
-    const createControlBtn = (icon, label, id) => {
+    const createControlBtn = (icon, label, id, tooltip) => {
         const btn = document.createElement('button');
         btn.id = id;
         btn.className = 'flex items-center gap-1.5 md:gap-2.5 px-3 md:px-4 py-2 md:py-2.5 bg-white/5 hover:bg-white/10 rounded-xl md:rounded-2xl transition-all border border-white/5 group whitespace-nowrap';
+        if (tooltip) btn.setAttribute('data-tooltip', tooltip);
         btn.innerHTML = `
             ${icon}
             <span id="${id}-label" class="text-xs font-bold text-white group-hover:text-primary transition-colors">${label}</span>
@@ -143,26 +164,42 @@ export function ImageStudio() {
         <div class="w-5 h-5 bg-primary rounded-md flex items-center justify-center shadow-lg shadow-primary/20">
             <span class="text-[10px] font-black text-black">G</span>
         </div>
-    `, selectedModelName, 'model-btn');
+    `, selectedModelName, 'model-btn', 'Select AI generation model');
 
     const arBtn = createControlBtn(`
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="opacity-60 text-secondary"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
-    `, selectedAr, 'ar-btn');
+    `, selectedAr, 'ar-btn', 'Change aspect ratio');
 
     const qualityBtn = createControlBtn(`
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="opacity-60 text-secondary"><path d="M6 2L3 6v15a2 2 0 002 2h14a2 2 0 002-2V6l-3-4H6z"/></svg>
-    `, '720p', 'quality-btn');
+    `, '720p', 'quality-btn', 'Set output quality');
 
     controlsLeft.appendChild(modelBtn);
     controlsLeft.appendChild(arBtn);
     controlsLeft.appendChild(qualityBtn);
+    
+    // Advanced options toggle button
+    const advancedBtn = createControlBtn(`
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="opacity-60 text-secondary"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 001.82-.33 1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-1.82.33A1.65 1.65 0 0019.4 9a1.65 1.65 0 00-1.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    `, 'Advanced', 'advanced-btn', 'Show advanced options');
+    controlsLeft.appendChild(advancedBtn);
+    
+    // Quick Tools toggle button
+    const toolsBtn = createControlBtn(`
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="opacity-60 text-secondary"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+    `, 'Tools', 'tools-btn', 'Quick starters & prompt enhancer');
+    controlsLeft.appendChild(toolsBtn);
     // Show quality button if the default model has quality/resolution options
     const _initResolutions = getResolutionsForModel(defaultModel.id);
     qualityBtn.style.display = _initResolutions.length > 0 ? 'flex' : 'none';
-    if (_initResolutions.length > 0) document.getElementById('quality-btn-label').textContent = _initResolutions[0];
+    if (_initResolutions.length > 0) {
+        const qlabel = qualityBtn.querySelector('#quality-btn-label');
+        if (qlabel) qlabel.textContent = _initResolutions[0];
+    }
 
     const generateBtn = document.createElement('button');
     generateBtn.className = 'bg-primary text-black px-6 md:px-8 py-3 md:py-3.5 rounded-xl md:rounded-[1.5rem] font-black text-sm md:text-base hover:shadow-glow hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2.5 w-full sm:w-auto shadow-lg';
+    generateBtn.setAttribute('data-tooltip', 'Generate AI image from prompt');
     generateBtn.innerHTML = `Generate ✨`;
 
     bottomRow.appendChild(controlsLeft);
@@ -171,6 +208,419 @@ export function ImageStudio() {
     promptWrapper.appendChild(bar);
     container.appendChild(promptWrapper);
 
+    const inlineInstructions = createInlineInstructions('image');
+    inlineInstructions.classList.add('max-w-4xl', 'mt-8');
+    container.appendChild(inlineInstructions);
+
+    // ==========================================
+    // 3. QUICK TOOLS PANEL (Prompt Enhancer + Quick Starters)
+    // ==========================================
+    const toolsPanel = document.createElement('div');
+    toolsPanel.className = 'w-full max-w-4xl mt-6 animate-fade-in-up hidden';
+    toolsPanel.id = 'tools-panel';
+    
+    // Build tools panel HTML
+    toolsPanel.innerHTML = `
+        <div class="bg-[#111]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex flex-col gap-4">
+            <div class="flex items-center justify-between pb-3 border-b border-white/5">
+                <h3 class="text-sm font-bold text-white">Quick Tools</h3>
+                <button id="close-tools-btn" class="text-white/40 hover:text-white transition-colors">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            
+            <div class="flex flex-col lg:flex-row gap-6">
+                <!-- Quick Starters Section -->
+                <div class="flex-1">
+                    <h4 class="text-xs font-bold text-secondary uppercase tracking-wider mb-3">Quick Starters</h4>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        ${QUICK_PROMPTS.map(q => `
+                            <button class="quick-starter-btn px-3 py-2 rounded-lg text-xs font-bold bg-white/5 text-secondary hover:bg-white/10 hover:text-primary transition-all text-left border border-white/5 hover:border-primary/30" data-prompt="${q.prompt}">
+                                ${q.label}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+                
+                <!-- Prompt Enhancer Section -->
+                <div class="flex-1">
+                    <h4 class="text-xs font-bold text-secondary uppercase tracking-wider mb-3">Prompt Enhancer</h4>
+                    <div class="flex flex-col gap-3">
+                        <input type="text" id="base-prompt-input" 
+                            placeholder="Enter base prompt..."
+                            class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder:text-muted focus:outline-none focus:border-primary/50 transition-colors">
+                        
+                        <div>
+                            <label class="text-[10px] font-bold text-muted uppercase tracking-wider mb-2 block">Enhancement Tags</label>
+                            <div id="enhance-tags-area" class="flex flex-wrap gap-1.5">
+                                ${Object.entries(ENHANCE_TAGS).map(([category, tags]) => 
+                                    tags.map(tag => `<button class="enhance-tag-btn px-2 py-1 rounded-full text-[10px] font-bold bg-white/5 text-secondary hover:bg-white/10 transition-all" data-tag="${tag}">${tag}</button>`).join('')
+                                ).join('')}
+                            </div>
+                        </div>
+                        
+                        <div class="flex flex-col gap-2">
+                            <label class="text-[10px] font-bold text-muted uppercase tracking-wider">Enhanced Prompt</label>
+                            <div id="enhanced-prompt-display" class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-xs min-h-[40px]"></div>
+                            <div class="flex gap-2">
+                                <button id="copy-enhanced-btn" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white/5 text-secondary hover:bg-white/10 transition-all">
+                                    Copy
+                                </button>
+                                <button id="use-enhanced-btn" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-primary text-black hover:shadow-glow transition-all">
+                                    Use in Generator
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(toolsPanel);
+
+    // ==========================================
+    // 4. ADVANCED OPTIONS PANEL
+    // ==========================================
+    const STYLE_PRESETS = ['None', 'Photorealistic', 'Anime', 'Cinematic', 'Oil Painting', 'Watercolor', 'Digital Art', 'Concept Art', 'Cyberpunk'];
+    
+    const advancedPanel = document.createElement('div');
+    advancedPanel.className = 'w-full max-w-4xl mt-6 animate-fade-in-up hidden';
+    advancedPanel.id = 'advanced-panel';
+    advancedPanel.innerHTML = `
+        <div class="bg-[#111]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex flex-col gap-4">
+            <div class="flex items-center justify-between pb-3 border-b border-white/5">
+                <h3 class="text-sm font-bold text-white">Advanced Options</h3>
+                <button id="close-adv-btn" class="text-white/40 hover:text-white transition-colors">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            
+            <!-- Style Presets -->
+            <div class="flex flex-col gap-2">
+                <label class="text-xs font-bold text-secondary uppercase tracking-wider">Style Preset</label>
+                <div class="flex gap-2 flex-wrap">
+                    ${STYLE_PRESETS.map(s => `<button class="style-preset-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white/5 text-secondary hover:bg-white/10 transition-all" data-style="${s}">${s}</button>`).join('')}
+                </div>
+            </div>
+            
+            <!-- Negative Prompt -->
+            <div class="flex flex-col gap-2">
+                <label class="text-xs font-bold text-secondary uppercase tracking-wider">Negative Prompt</label>
+                <input type="text" id="negative-prompt-input" 
+                    placeholder="What to exclude from the image (e.g., blurry, distorted, watermark)"
+                    class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder:text-muted focus:outline-none focus:border-primary/50 transition-colors">
+            </div>
+            
+            <!-- Guidance Scale & Steps Row -->
+            <div class="flex gap-4 flex-wrap">
+                <div class="flex-1 min-w-[200px] flex flex-col gap-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-bold text-secondary uppercase tracking-wider">Guidance Scale</label>
+                        <span id="guidance-value" class="text-xs font-bold text-primary">7.5</span>
+                    </div>
+                    <input type="range" id="guidance-slider" min="1" max="20" step="0.5" value="7.5" 
+                        class="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary">
+                </div>
+                
+                <div class="flex-1 min-w-[200px] flex flex-col gap-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-xs font-bold text-secondary uppercase tracking-wider">Steps</label>
+                        <span id="steps-value" class="text-xs font-bold text-primary">25</span>
+                    </div>
+                    <input type="range" id="steps-slider" min="1" max="50" step="1" value="25" 
+                        class="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary">
+                </div>
+            </div>
+            
+            <!-- Seed -->
+            <div class="flex flex-col gap-2">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold text-secondary uppercase tracking-wider">Seed</label>
+                    <button id="randomize-seed-btn" class="text-xs font-bold text-primary hover:text-primary/80 transition-colors">Randomize</button>
+                </div>
+                <input type="number" id="seed-input" 
+                    placeholder="-1 for random"
+                    value="-1"
+                    class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder:text-muted focus:outline-none focus:border-primary/50 transition-colors">
+            </div>
+            
+            <!-- Batch Count -->
+            <div class="flex flex-col gap-2">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold text-secondary uppercase tracking-wider">Batch Count</label>
+                    <span id="batch-value" class="text-xs font-bold text-primary">1</span>
+                </div>
+                <input type="range" id="batch-slider" min="1" max="4" step="1" value="1" 
+                    class="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary">
+            </div>
+            
+            <!-- Width & Height -->
+            <div class="flex gap-4 flex-wrap">
+                <div class="flex-1 min-w-[120px] flex flex-col gap-2">
+                    <label class="text-xs font-bold text-secondary uppercase tracking-wider">Width</label>
+                    <input type="number" id="width-input" 
+                        placeholder="Auto"
+                        value=""
+                        class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder:text-muted focus:outline-none focus:border-primary/50 transition-colors">
+                </div>
+                <div class="flex-1 min-w-[120px] flex flex-col gap-2">
+                    <label class="text-xs font-bold text-secondary uppercase tracking-wider">Height</label>
+                    <input type="number" id="height-input" 
+                        placeholder="Auto"
+                        value=""
+                        class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder:text-muted focus:outline-none focus:border-primary/50 transition-colors">
+                </div>
+            </div>
+            
+            <!-- Reference Strength (for I2I models) -->
+            <div class="flex flex-col gap-2">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold text-secondary uppercase tracking-wider">Reference Strength</label>
+                    <span id="reference-strength-value" class="text-xs font-bold text-primary">50%</span>
+                </div>
+                <input type="range" id="reference-strength-slider" min="0" max="100" step="5" value="50" 
+                    class="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-primary">
+                <p class="text-xs text-muted">How much to preserve the reference image characteristics</p>
+            </div>
+            
+            <!-- LoRA Model Selection -->
+            <div class="flex flex-col gap-2">
+                <label class="text-xs font-bold text-secondary uppercase tracking-wider">LoRA Model (Optional)</label>
+                <input type="text" id="lora-input" 
+                    placeholder="e.g., civitai:1642876@1864626"
+                    class="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder:text-muted focus:outline-none focus:border-primary/50 transition-colors">
+                <div class="flex items-center gap-2 mt-1">
+                    <label class="text-xs font-bold text-secondary">LoRA Weight:</label>
+                    <input type="number" id="lora-weight-input" 
+                        value="1.0" min="0" max="4" step="0.1"
+                        class="w-20 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-white text-sm focus:outline-none focus:border-primary/50 transition-colors">
+                </div>
+                <p class="text-xs text-muted">Enter a LoRA model ID from Civitai (format: civitai:id@version)</p>
+            </div>
+        </div>
+    `;
+    container.appendChild(advancedPanel);
+
+    // Advanced panel toggle logic
+    const toggleAdvanced = () => {
+        showAdvanced = !showAdvanced;
+        advancedPanel.classList.toggle('hidden', !showAdvanced);
+        document.getElementById('advanced-btn-label').textContent = showAdvanced ? 'Less' : 'Advanced';
+    };
+    
+    // Add tools panel and advanced panel to container first before accessing their elements
+    container.appendChild(toolsPanel);
+    container.appendChild(advancedPanel);
+    
+    // Now set up event handlers after elements are in DOM
+    advancedBtn.onclick = toggleAdvanced;
+    const closeAdvBtn = advancedPanel.querySelector('#close-adv-btn');
+    if (closeAdvBtn) closeAdvBtn.onclick = toggleAdvanced;
+    
+    // Quick Tools Panel toggle
+    const toggleTools = () => {
+        showToolsPanel = !showToolsPanel;
+        toolsPanel.classList.toggle('hidden', !showToolsPanel);
+        if (showToolsPanel) {
+            // Close advanced panel when opening tools
+            if (!showAdvanced) {
+                showAdvanced = true;
+                advancedPanel.classList.remove('hidden');
+            }
+        }
+        document.getElementById('tools-btn-label').textContent = showToolsPanel ? 'Tools' : 'Tools';
+    };
+    
+    toolsBtn.onclick = toggleTools;
+    const closeToolsBtn = toolsPanel.querySelector('#close-tools-btn');
+    if (closeToolsBtn) closeToolsBtn.onclick = toggleTools;
+    
+    // Quick Starter buttons
+    const quickStarterBtns = toolsPanel.querySelectorAll('.quick-starter-btn');
+    quickStarterBtns.forEach(btn => {
+        btn.onclick = () => {
+            const prompt = btn.dataset.prompt;
+            textarea.value = prompt;
+            textarea.style.height = 'auto';
+            const maxHeight = window.innerWidth < 768 ? 150 : 250;
+            textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + 'px';
+            // Close tools panel after selection
+            showToolsPanel = false;
+            toolsPanel.classList.add('hidden');
+        };
+    });
+    
+    // Prompt Enhancer - selected tags state
+    const enhanceSelectedTags = new Set();
+    const basePromptInput = toolsPanel.querySelector('#base-prompt-input');
+    const enhancedPromptDisplay = toolsPanel.querySelector('#enhanced-prompt-display');
+    
+    // Update enhanced prompt display
+    const updateEnhancedPrompt = () => {
+        const base = basePromptInput?.value?.trim() || '';
+        const tags = Array.from(enhanceSelectedTags).join(', ');
+        const enhanced = [base, tags].filter(p => p).join(', ');
+        if (enhancedPromptDisplay) {
+            enhancedPromptDisplay.textContent = enhanced || 'Your enhanced prompt will appear here...';
+            enhancedPromptDisplay.classList.toggle('text-muted', !enhanced);
+        }
+    };
+    
+    // Base prompt input handler
+    if (basePromptInput) {
+        basePromptInput.oninput = updateEnhancedPrompt;
+    }
+    
+    // Enhance tag buttons
+    const enhanceTagBtns = toolsPanel.querySelectorAll('.enhance-tag-btn');
+    enhanceTagBtns.forEach(btn => {
+        btn.onclick = () => {
+            const tag = btn.dataset.tag;
+            if (enhanceSelectedTags.has(tag)) {
+                enhanceSelectedTags.delete(tag);
+                btn.classList.remove('bg-primary', 'text-black');
+                btn.classList.add('bg-white/5', 'text-secondary');
+            } else {
+                enhanceSelectedTags.add(tag);
+                btn.classList.remove('bg-white/5', 'text-secondary');
+                btn.classList.add('bg-primary', 'text-black');
+            }
+            updateEnhancedPrompt();
+        };
+    });
+    
+    // Copy enhanced button
+    const copyEnhancedBtn = toolsPanel.querySelector('#copy-enhanced-btn');
+    if (copyEnhancedBtn) {
+        copyEnhancedBtn.onclick = () => {
+            const text = enhancedPromptDisplay?.textContent || '';
+            if (text && text !== 'Your enhanced prompt will appear here...') {
+                navigator.clipboard.writeText(text);
+                copyEnhancedBtn.textContent = 'Copied!';
+                setTimeout(() => { copyEnhancedBtn.textContent = 'Copy'; }, 1500);
+            }
+        };
+    }
+    
+    // Use enhanced button
+    const useEnhancedBtn = toolsPanel.querySelector('#use-enhanced-btn');
+    if (useEnhancedBtn) {
+        useEnhancedBtn.onclick = () => {
+            const text = enhancedPromptDisplay?.textContent || '';
+            if (text && text !== 'Your enhanced prompt will appear here...') {
+                textarea.value = text;
+                textarea.style.height = 'auto';
+                const maxHeight = window.innerWidth < 768 ? 150 : 250;
+                textarea.style.height = Math.min(textarea.scrollHeight, maxHeight) + 'px';
+                // Close tools panel after use
+                showToolsPanel = false;
+                toolsPanel.classList.add('hidden');
+            }
+        };
+    }
+    
+    // Negative prompt
+    const negPromptInput = advancedPanel.querySelector('#negative-prompt-input');
+    if (negPromptInput) negPromptInput.oninput = (e) => { negativePrompt = e.target.value; };
+    
+    // Guidance scale slider
+    const guidanceSlider = advancedPanel.querySelector('#guidance-slider');
+    const guidanceValue = advancedPanel.querySelector('#guidance-value');
+    if (guidanceSlider && guidanceValue) {
+        guidanceSlider.oninput = (e) => {
+            guidanceScale = parseFloat(e.target.value);
+            guidanceValue.textContent = guidanceScale;
+        };
+    }
+    
+    // Steps slider
+    const stepsSlider = advancedPanel.querySelector('#steps-slider');
+    const stepsValue = advancedPanel.querySelector('#steps-value');
+    if (stepsSlider && stepsValue) {
+        stepsSlider.oninput = (e) => {
+            steps = parseInt(e.target.value);
+            stepsValue.textContent = steps;
+        };
+    }
+    
+    // Seed input
+    const seedInput = advancedPanel.querySelector('#seed-input');
+    if (seedInput) seedInput.oninput = (e) => { seed = parseInt(e.target.value) || -1; };
+    
+    // Randomize seed button
+    const randSeedBtn = advancedPanel.querySelector('#randomize-seed-btn');
+    if (randSeedBtn) {
+        randSeedBtn.onclick = () => {
+            seed = Math.floor(Math.random() * 999999999);
+            if (seedInput) seedInput.value = seed;
+        };
+    }
+    
+    // Batch count slider
+    const batchSlider = advancedPanel.querySelector('#batch-slider');
+    const batchValueEl = advancedPanel.querySelector('#batch-value');
+    if (batchSlider && batchValueEl) {
+        batchSlider.oninput = (e) => {
+            batchCount = parseInt(e.target.value);
+            batchValueEl.textContent = batchCount;
+        };
+    }
+    
+    // Width input
+    const widthInput = advancedPanel.querySelector('#width-input');
+    if (widthInput) {
+        widthInput.oninput = (e) => {
+            customWidth = parseInt(e.target.value) || 0;
+        };
+    }
+    
+    // Height input
+    const heightInput = advancedPanel.querySelector('#height-input');
+    if (heightInput) {
+        heightInput.oninput = (e) => {
+            customHeight = parseInt(e.target.value) || 0;
+        };
+    }
+    
+    // Reference strength slider
+    const refStrengthSlider = advancedPanel.querySelector('#reference-strength-slider');
+    const refStrengthValue = advancedPanel.querySelector('#reference-strength-value');
+    if (refStrengthSlider && refStrengthValue) {
+        refStrengthSlider.oninput = (e) => {
+            referenceStrength = parseInt(e.target.value);
+            refStrengthValue.textContent = referenceStrength + '%';
+        };
+    }
+    
+    // LoRA input
+    const loraInput = advancedPanel.querySelector('#lora-input');
+    if (loraInput) {
+        loraInput.oninput = (e) => {
+            selectedLora = e.target.value.trim();
+        };
+    }
+    
+    // LoRA weight input
+    const loraWeightInput = advancedPanel.querySelector('#lora-weight-input');
+    if (loraWeightInput) {
+        loraWeightInput.oninput = (e) => {
+            loraWeight = parseFloat(e.target.value) || 1.0;
+        };
+    }
+    
+    // Style preset handlers
+    advancedPanel.querySelectorAll('.style-preset-btn').forEach(btn => {
+        btn.onclick = () => {
+            selectedStyle = btn.dataset.style;
+            advancedPanel.querySelectorAll('.style-preset-btn').forEach(b => {
+                b.classList.remove('bg-primary/20', 'text-primary', 'border-primary/30');
+                b.classList.add('bg-white/5', 'text-secondary');
+            });
+            btn.classList.add('bg-primary/20', 'text-primary', 'border-primary/30');
+            btn.classList.remove('bg-white/5', 'text-secondary');
+        };
+    });
     // ==========================================
     // 3. DROPDOWNS (Professional implementation)
     // ==========================================

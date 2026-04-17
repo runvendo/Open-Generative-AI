@@ -2,11 +2,18 @@ import { getModelById, getVideoModelById, getI2IModelById, getI2VModelById, getV
 
 export class MuapiClient {
     constructor() {
-        // Ideally user provides this in settings
-        this.baseUrl = import.meta.env.DEV ? '' : 'https://api.muapi.ai';
+        // When deployed by Vendo, NEXT_PUBLIC_MUAPI_BASE_URL points to the
+        // proxy (e.g. https://muapi-proxy.vendo.run). Otherwise fall back to
+        // the original BYOK behavior.
+        const envBase = typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_MUAPI_BASE_URL;
+        this.baseUrl = envBase || (import.meta.env.DEV ? '' : 'https://api.muapi.ai');
     }
 
     getKey() {
+        // Prefer Vendo-injected key (baked at build time), then window global,
+        // then localStorage (original BYOK path).
+        const envKey = typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_MUAPI_API_KEY;
+        if (envKey) return envKey;
         const key = window.__MUAPI_KEY__ || localStorage.getItem('muapi_key');
         if (!key) throw new Error('API Key missing. Please set it in Settings.');
         return key;

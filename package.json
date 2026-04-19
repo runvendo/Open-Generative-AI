@@ -94,8 +94,8 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4.2.2",
     "@tailwindcss/vite": "^4.1.18",
-    "autoprefixer": "^10.4.24",
     "electron": "^33.4.11",
     "electron-builder": "^25.1.8",
     "eslint": "^9",

@@ -3,8 +3,10 @@ import { getModelById, getVideoModelById, getI2IModelById, getI2VModelById, getV
 // When deployed by Vendo, NEXT_PUBLIC_MUAPI_BASE_URL points to
 // https://muapi-proxy.vendo.run and NEXT_PUBLIC_MUAPI_API_KEY holds the
 // per-deployment proxy key. Generation paths are URL-compatible with the
-// upstream, so /api/v1/* flows unchanged. Balance is rewired below.
+// upstream, so /api/v1/* flows unchanged. Balance is read from the
+// central Vendo API (NEXT_PUBLIC_VENDO_API_URL), not the provider proxy.
 const VENDO_PROXY_BASE = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_MUAPI_BASE_URL) || '';
+const VENDO_API_BASE = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_VENDO_API_URL) || '';
 const BASE_URL = VENDO_PROXY_BASE || 'https://api.muapi.ai';
 const IS_VENDO_PROXY = Boolean(VENDO_PROXY_BASE);
 
@@ -178,10 +180,10 @@ export function uploadFile(apiKey, file, onProgress) {
 
 export async function getUserBalance(apiKey) {
     if (IS_VENDO_PROXY) {
-        // Vendo proxy exposes tenant balance at GET /balance (see
-        // vendo/docs/api/tokens-and-proxies.md). Authorized with the same
-        // key used for generations.
-        const response = await fetch(`${BASE_URL}/balance`, {
+        // Balance lives on the central Vendo API, not the provider proxy.
+        // See vendo/docs/api/vendo-api.md for the contract.
+        const apiBase = VENDO_API_BASE || 'https://vendo.run';
+        const response = await fetch(`${apiBase}/api/v1/balance`, {
             headers: { 'Authorization': `Bearer ${apiKey}` },
         });
         if (!response.ok) {

@@ -1,6 +1,12 @@
 import { getModelById, getVideoModelById, getI2IModelById, getI2VModelById, getV2VModelById, getLipSyncModelById } from './models.js';
 
-const BASE_URL = 'https://api.muapi.ai';
+// When deployed by Vendo, NEXT_PUBLIC_MUAPI_BASE_URL points to
+// https://muapi-proxy.vendo.run and NEXT_PUBLIC_MUAPI_API_KEY holds the
+// per-deployment proxy key. Generation paths are URL-compatible with the
+// upstream, so /api/v1/* flows unchanged. Balance is rewired below.
+const VENDO_PROXY_BASE = (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_MUAPI_BASE_URL) || '';
+const BASE_URL = VENDO_PROXY_BASE || 'https://api.muapi.ai';
+const IS_VENDO_PROXY = Boolean(VENDO_PROXY_BASE);
 
 async function pollForResult(requestId, key, maxAttempts = 900, interval = 2000) {
     const pollUrl = `${BASE_URL}/api/v1/predictions/${requestId}/result`;
@@ -171,6 +177,20 @@ export function uploadFile(apiKey, file, onProgress) {
 }
 
 export async function getUserBalance(apiKey) {
+    if (IS_VENDO_PROXY) {
+        // Vendo proxy exposes tenant balance at GET /balance (see
+        // vendo/docs/api/tokens-and-proxies.md). Authorized with the same
+        // key used for generations.
+        const response = await fetch(`${BASE_URL}/balance`, {
+            headers: { 'Authorization': `Bearer ${apiKey}` },
+        });
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Failed to fetch balance: ${response.status} - ${errText.slice(0, 100)}`);
+        }
+        const data = await response.json();
+        return { balance: data.balance_usd, source: 'vendo', tenantId: data.tenant_id };
+    }
     const response = await fetch(`${BASE_URL}/api/v1/account/balance`, {
         headers: {
             'Content-Type': 'application/json',
@@ -181,5 +201,6 @@ export async function getUserBalance(apiKey) {
         const errText = await response.text();
         throw new Error(`Failed to fetch balance: ${response.status} - ${errText.slice(0, 100)}`);
     }
-    return await response.json();
+    const data = await response.json();
+    return { ...data, source: 'muapi' };
 }

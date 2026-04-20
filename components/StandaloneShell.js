@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { ImageStudio, VideoStudio, LipSyncStudio, CinemaStudio, getUserBalance } from 'studio';
 import ApiKeyModal from './ApiKeyModal';
 
@@ -13,10 +14,21 @@ const TABS = [
 
 const STORAGE_KEY = 'muapi_key';
 
+// Vendo injects both at build time when this app is deployed through
+// vendo.run. Their presence flips the app into managed mode: the key is
+// a Vendo proxy key, the ApiKeyModal is bypassed, and the balance chip
+// reads from the Vendo proxy's /balance endpoint.
+const VENDO_KEY = process.env.NEXT_PUBLIC_MUAPI_API_KEY || '';
+const VENDO_BASE = process.env.NEXT_PUBLIC_MUAPI_BASE_URL || '';
+const IS_VENDO = Boolean(VENDO_KEY && VENDO_BASE);
+
+const TOPUP_URL = 'https://vendo.run/settings/billing';
+
 export default function StandaloneShell() {
   const [apiKey, setApiKey] = useState(null);
   const [activeTab, setActiveTab] = useState('image');
   const [balance, setBalance] = useState(null);
+  const [balanceSource, setBalanceSource] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
 
@@ -24,6 +36,7 @@ export default function StandaloneShell() {
     try {
       const data = await getUserBalance(key);
       setBalance(data.balance);
+      setBalanceSource(data.source ?? null);
     } catch (err) {
       console.error('Balance fetch failed:', err);
     }
@@ -31,6 +44,11 @@ export default function StandaloneShell() {
 
   useEffect(() => {
     setHasMounted(true);
+    if (IS_VENDO) {
+      setApiKey(VENDO_KEY);
+      fetchBalance(VENDO_KEY);
+      return;
+    }
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       setApiKey(stored);
@@ -48,14 +66,38 @@ export default function StandaloneShell() {
     localStorage.removeItem(STORAGE_KEY);
     setApiKey(null);
     setBalance(null);
+    setBalanceSource(null);
+    setShowSettings(false);
   }, []);
 
-  // Poll for balance every 30 seconds if key is present
   useEffect(() => {
     if (!apiKey) return;
     const interval = setInterval(() => fetchBalance(apiKey), 30000);
     return () => clearInterval(interval);
   }, [apiKey, fetchBalance]);
+
+  useEffect(() => {
+    if (!IS_VENDO || balance === null) return;
+    if (balance <= 0) {
+      toast.error(
+        (t) => (
+          <span>
+            Out of Vendo credits.{' '}
+            <a
+              href={TOPUP_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="underline text-[#d9ff00]"
+              onClick={() => toast.dismiss(t.id)}
+            >
+              Add credits
+            </a>
+          </span>
+        ),
+        { id: 'vendo-empty-balance', duration: 8000 },
+      );
+    }
+  }, [balance]);
 
   if (!hasMounted) return (
     <div className="min-h-screen bg-[#050505] flex items-center justify-center">
@@ -66,6 +108,12 @@ export default function StandaloneShell() {
   if (!apiKey) {
     return <ApiKeyModal onSave={handleKeySave} />;
   }
+
+  const balanceLabel = balance === null
+    ? '—'
+    : balanceSource === 'vendo'
+      ? `$${Number(balance).toFixed(2)}`
+      : `$${balance}`;
 
   return (
     <div className="h-screen bg-[#030303] flex flex-col overflow-hidden text-white">
@@ -103,39 +151,59 @@ export default function StandaloneShell() {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-3 bg-white/5 px-3 py-1.5 rounded-full border border-white/5 transition-colors">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-white/90">
-                ${balance !== null ? `${balance}` : '---'}
-              </span>
+          <a
+            href={balanceSource === 'vendo' ? TOPUP_URL : 'https://muapi.ai/billing'}
+            target="_blank"
+            rel="noreferrer"
+            title={balanceSource === 'vendo' ? 'Vendo credit balance — click to top up' : 'Muapi.ai balance'}
+            className="flex items-center gap-3 bg-white/5 px-3 py-1.5 rounded-full border border-white/5 hover:bg-white/10 transition-colors"
+          >
+            <div className={`w-2 h-2 rounded-full animate-pulse ${balance !== null && balance <= 0 ? 'bg-red-500' : 'bg-green-500'}`} />
+            <div className="flex flex-col leading-none">
+              <span className="text-xs font-bold text-white/90">{balanceLabel}</span>
+              {balanceSource === 'vendo' && (
+                <span className="text-[9px] uppercase tracking-wider text-white/40">Vendo credits</span>
+              )}
             </div>
-          </div>
+          </a>
 
-          <div 
-            onClick={() => setShowSettings(true)}
-            className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#d9ff00] to-yellow-200 border border-white/20 cursor-pointer hover:scale-105 transition-transform" 
-          />
+          {!IS_VENDO && (
+            <div
+              onClick={() => setShowSettings(true)}
+              className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#d9ff00] to-yellow-200 border border-white/20 cursor-pointer hover:scale-105 transition-transform"
+            />
+          )}
         </div>
       </header>
 
       {/* Studio Content */}
-      <div className="flex-1">
+      <div className="flex-1 relative">
         {activeTab === 'image'   && <ImageStudio   apiKey={apiKey} />}
         {activeTab === 'video'   && <VideoStudio   apiKey={apiKey} />}
         {activeTab === 'lipsync' && <LipSyncStudio apiKey={apiKey} />}
         {activeTab === 'cinema'  && <CinemaStudio  apiKey={apiKey} />}
+
+        {IS_VENDO && (
+          <a
+            href="https://vendo.run"
+            target="_blank"
+            rel="noreferrer"
+            className="absolute bottom-3 right-4 text-[10px] uppercase tracking-widest text-white/30 hover:text-[#d9ff00] transition-colors"
+          >
+            Powered by Vendo
+          </a>
+        )}
       </div>
 
-      {/* Settings Modal */}
-      {showSettings && (
+      {/* Settings Modal — hidden in Vendo mode since the key is managed */}
+      {!IS_VENDO && showSettings && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in-up">
           <div className="bg-[#0a0a0a] border border-white/10 rounded-xl p-8 w-full max-w-sm shadow-2xl">
             <h2 className="text-white font-bold text-lg mb-2">Settings</h2>
             <p className="text-white/40 text-[13px] mb-8">
               Manage your AI studio preferences and authentication.
             </p>
-            
+
             <div className="space-y-4 mb-8">
               <div className="bg-white/5 border border-white/[0.03] rounded-md p-4">
                 <label className="block text-xs font-bold text-white/30 mb-2">

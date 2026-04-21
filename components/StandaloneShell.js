@@ -22,7 +22,7 @@ const VENDO_KEY = process.env.NEXT_PUBLIC_MUAPI_API_KEY || '';
 const VENDO_BASE = process.env.NEXT_PUBLIC_MUAPI_BASE_URL || '';
 const IS_VENDO = Boolean(VENDO_KEY && VENDO_BASE);
 
-const TOPUP_URL = 'https://vendo.run/settings/billing';
+const TOPUP_URL = 'https://vendo.run/billing';
 
 export default function StandaloneShell() {
   const [apiKey, setApiKey] = useState(null);

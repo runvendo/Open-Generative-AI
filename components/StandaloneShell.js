@@ -29,6 +29,7 @@ export default function StandaloneShell() {
   const [activeTab, setActiveTab] = useState('image');
   const [balance, setBalance] = useState(null);
   const [balanceSource, setBalanceSource] = useState(null);
+  const [balanceError, setBalanceError] = useState(null); // 'auth' | 'other' | null
   const [showSettings, setShowSettings] = useState(false);
   const [hasMounted, setHasMounted] = useState(false);
 
@@ -37,7 +38,16 @@ export default function StandaloneShell() {
       const data = await getUserBalance(key);
       setBalance(data.balance);
       setBalanceSource(data.source ?? null);
+      setBalanceError(null);
     } catch (err) {
+      // getUserBalance throws `Error("Failed to fetch balance: <status> - ...")`.
+      // Parse the status so we can stop the 30s poll on auth failure instead of
+      // spamming the console / network tab forever.
+      const msg = err?.message || '';
+      const m = msg.match(/:\s*(\d{3})\b/);
+      const status = m ? Number(m[1]) : null;
+      const isAuth = status === 401 || status === 403;
+      setBalanceError(isAuth ? 'auth' : 'other');
       console.error('Balance fetch failed:', err);
     }
   }, []);
@@ -67,14 +77,18 @@ export default function StandaloneShell() {
     setApiKey(null);
     setBalance(null);
     setBalanceSource(null);
+    setBalanceError(null);
     setShowSettings(false);
   }, []);
 
   useEffect(() => {
     if (!apiKey) return;
+    // Stop polling once we hit an auth failure: the key is invalid/revoked
+    // and retrying every 30s just spams the network tab until the tab closes.
+    if (balanceError === 'auth') return;
     const interval = setInterval(() => fetchBalance(apiKey), 30000);
     return () => clearInterval(interval);
-  }, [apiKey, fetchBalance]);
+  }, [apiKey, balanceError, fetchBalance]);
 
   useEffect(() => {
     if (!IS_VENDO || balance === null) return;

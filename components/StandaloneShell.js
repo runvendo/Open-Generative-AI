@@ -124,7 +124,7 @@ export default function StandaloneShell() {
   }
 
   const balanceLabel = balance === null
-    ? '—'
+    ? null
     : balanceSource === 'vendo'
       ? `$${Number(balance).toFixed(2)}`
       : `$${balance}`;
@@ -143,8 +143,8 @@ export default function StandaloneShell() {
           <span className="text-sm font-bold tracking-tight hidden sm:block">OpenGenerativeAI</span>
         </div>
 
-        {/* Center: Navigation */}
-        <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-6">
+        {/* Center: Navigation — flex row on mobile (scrollable), absolute-centered on md+ */}
+        <nav className="flex flex-1 lg:flex-none items-center gap-4 lg:gap-6 overflow-x-auto no-scrollbar min-w-0 mx-2 lg:mx-0 lg:absolute lg:left-1/2 lg:-translate-x-1/2">
           {TABS.map((tab) => (
             <button
               key={tab.id}
@@ -174,8 +174,20 @@ export default function StandaloneShell() {
           >
             <div className={`w-2 h-2 rounded-full animate-pulse ${balance !== null && balance <= 0 ? 'bg-red-500' : 'bg-green-500'}`} />
             <div className="flex flex-col leading-none">
-              <span className="text-xs font-bold text-white/90">{balanceLabel}</span>
-              {balanceSource === 'vendo' && (
+              {balanceLabel === null ? (
+                <svg
+                  className="h-3 w-3 animate-spin text-white/70"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-label="Loading balance"
+                >
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                  <path fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" className="opacity-75" />
+                </svg>
+              ) : (
+                <span className="text-xs font-bold text-white/90">{balanceLabel}</span>
+              )}
+              {balanceSource === 'vendo' && balanceLabel !== null && (
                 <span className="text-[9px] uppercase tracking-wider text-white/40">Vendo credits</span>
               )}
             </div>

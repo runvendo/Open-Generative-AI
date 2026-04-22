@@ -15,7 +15,9 @@
 
 @config "../tailwind.config.js";
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+@layer base {
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+}
 
 body {
   background: #050505;
@@ -44,6 +46,9 @@ body {
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
 
 @keyframes fade-in-up {
   from { opacity: 0; transform: translateY(12px); }

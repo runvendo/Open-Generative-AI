@@ -1,8 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
-@source "../app";
-@source "../components";
-@source "../packages/studio/src";
+
+/*
+ * Tailwind v4 does not auto-scan npm workspace packages, and bare directory
+ * paths (`@source "../packages/studio/src"`) failed to resolve under
+ * `@tailwindcss/postcss@4.2.x` when combined with a `@config` directive
+ * pointing at a legacy v3-style config. Explicit glob patterns work.
+ *
+ * Keep these in sync with tailwind.config.js `content` when adding new
+ * source directories.
+ */
+@source "../app/**/*.{js,jsx,ts,tsx}";
+@source "../packages/studio/src/**/*.{js,jsx,ts,tsx}";
+
 @config "../tailwind.config.js";
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

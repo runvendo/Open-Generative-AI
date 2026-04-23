@@ -14,6 +14,7 @@ import {
   getResolutionsForI2VModel,
   getModesForModel,
 } from "../models.js";
+import { getModelPrice, formatModelPriceUsd } from "../prices.js";
 
 // ── tiny helpers ──────────────────────────────────────────────────────────────
 
@@ -122,7 +123,9 @@ function ModelDropdown({ imageMode, selectedModel, onSelect, onClose }) {
     return "bg-primary/10 text-primary";
   };
 
-  const renderItem = (m, isV2V = false) => (
+  const renderItem = (m, isV2V = false) => {
+    const priceLabel = formatModelPriceUsd(getModelPrice(m));
+    return (
     <div
       key={m.id}
       className={`flex items-center justify-between p-3.5 hover:bg-white/5 rounded-2xl cursor-pointer transition-all border border-transparent hover:border-white/5 ${selectedModel === m.id ? "bg-white/5 border-white/5" : ""}`}
@@ -149,9 +152,17 @@ function ModelDropdown({ imageMode, selectedModel, onSelect, onClose }) {
           )}
         </div>
       </div>
-      {selectedModel === m.id && <CheckSvg />}
+      <div className="flex items-center gap-2">
+        {priceLabel && (
+          <span className="text-[11px] font-semibold text-white/50 tabular-nums">
+            {priceLabel}
+          </span>
+        )}
+        {selectedModel === m.id && <CheckSvg />}
+      </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="flex flex-col h-full max-h-[70vh]">

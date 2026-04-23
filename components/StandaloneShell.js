@@ -203,7 +203,10 @@ export default function StandaloneShell() {
       </header>
 
       {/* Studio Content */}
-      <div className="flex-1 relative">
+      {/* min-h-0 is required: without it, flex items default to min-height: auto,
+          which lets the studio grow past the h-screen shell when the gallery fills —
+          causing the absolute-positioned prompt bar to render below the viewport. */}
+      <div className="flex-1 min-h-0 relative">
         {activeTab === 'image'   && <ImageStudio   apiKey={apiKey} />}
         {activeTab === 'video'   && <VideoStudio   apiKey={apiKey} />}
         {activeTab === 'lipsync' && <LipSyncStudio apiKey={apiKey} />}

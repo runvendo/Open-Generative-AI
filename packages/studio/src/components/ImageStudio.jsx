@@ -13,6 +13,7 @@ import {
   getQualityFieldForI2IModel,
   getMaxImagesForI2IModel,
 } from "../models.js";
+import { getModelPrice, formatModelPriceUsd } from "../prices.js";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -622,7 +623,9 @@ function ModelDropdown({ models, selectedModel, onSelect, onClose }) {
         Available models
       </div>
       <div className="flex flex-col gap-1.5 overflow-y-auto custom-scrollbar pr-1 pb-2">
-        {filtered.map((m) => (
+        {filtered.map((m) => {
+          const priceLabel = formatModelPriceUsd(getModelPrice(m));
+          return (
           <div
             key={m.id}
             onClick={(e) => {
@@ -652,20 +655,28 @@ function ModelDropdown({ models, selectedModel, onSelect, onClose }) {
                 </span>
               </div>
             </div>
-            {selectedModel === m.id && (
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="#d9ff00"
-                strokeWidth="4"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            )}
+            <div className="flex items-center gap-2">
+              {priceLabel && (
+                <span className="text-[11px] font-semibold text-white/50 tabular-nums">
+                  {priceLabel}
+                </span>
+              )}
+              {selectedModel === m.id && (
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#d9ff00"
+                  strokeWidth="4"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              )}
+            </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

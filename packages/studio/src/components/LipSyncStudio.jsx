@@ -9,6 +9,7 @@ import {
   getLipSyncModelById,
   getResolutionsForLipSyncModel,
 } from "../models.js";
+import { getModelPrice, formatModelPriceUsd } from "../prices.js";
 
 // ---------------------------------------------------------------------------
 // Upload button states
@@ -189,7 +190,14 @@ function Dropdown({ isOpen, items, selectedId, onSelect, onClose, anchorRef }) {
               : "text-white font-medium"
           }`}
         >
-          <div>{item.name}</div>
+          <div className="flex items-center justify-between gap-2">
+            <span>{item.name}</span>
+            {item.priceLabel && (
+              <span className="text-[11px] font-semibold text-white/50 tabular-nums">
+                {item.priceLabel}
+              </span>
+            )}
+          </div>
           {item.description && (
             <div className="text-xs text-muted mt-0.5">
               {item.description.slice(0, 60)}...
@@ -666,7 +674,10 @@ export default function LipSyncStudio({
   const hasHistory = history.length > 0;
 
   // ── Dropdown item lists ─────────────────────────────────────────────────
-  const modelDropdownItems = currentModels;
+  const modelDropdownItems = currentModels.map((m) => ({
+    ...m,
+    priceLabel: formatModelPriceUsd(getModelPrice(m)),
+  }));
   const resolutionDropdownItems = resolutionOptions.map((r) => ({
     id: r,
     name: r,

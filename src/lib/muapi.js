@@ -121,6 +121,34 @@ export class MuapiClient {
     }
 
     /**
+     * Builds a permanent-failure error (e.g. moderation rejection) that must
+     * stop polling immediately — the poll loop's catch only rethrows
+     * transient errors on the final attempt.
+     */
+    terminalError(message) {
+        const error = new Error(`Generation failed: ${message || 'Unknown error'}`);
+        error.terminal = true;
+        return error;
+    }
+
+    /**
+     * MuAPI reports moderation rejections as 4xx with the prediction status
+     * in the body, usually nested under `detail`. A failed/error status is
+     * terminal; anything else (including unparseable bodies) stays retryable.
+     */
+    pollFailureError(httpStatus, errText) {
+        try {
+            const body = JSON.parse(errText);
+            const detail = (body.detail && typeof body.detail === 'object') ? body.detail : body;
+            const status = detail.status?.toLowerCase();
+            if (status === 'failed' || status === 'error') return this.terminalError(detail.error || body.error);
+        } catch {
+            // Unparseable body — treat as transient.
+        }
+        return new Error(`Poll Failed: ${httpStatus} - ${errText.slice(0, 100)}`);
+    }
+
+    /**
      * Polls the predictions endpoint until the result is ready.
      * @param {string} requestId - The request ID from the submit response
      * @param {string} key - The API key
@@ -149,7 +177,7 @@ export class MuapiClient {
                     console.warn(`[Muapi] Poll error (${response.status}):`, errText);
                     // Continue polling on non-fatal errors
                     if (response.status >= 500) continue;
-                    throw new Error(`Poll Failed: ${response.status} - ${errText.slice(0, 100)}`);
+                    throw this.pollFailureError(response.status, errText);
                 }
 
                 const data = await response.json();
@@ -162,12 +190,12 @@ export class MuapiClient {
                 }
 
                 if (status === 'failed' || status === 'error') {
-                    throw new Error(`Generation failed: ${data.error || 'Unknown error'}`);
+                    throw this.terminalError(data.error);
                 }
 
                 // Otherwise (processing, pending, etc.) keep polling
             } catch (error) {
-                if (attempt === maxAttempts) throw error;
+                if (error.terminal || attempt === maxAttempts) throw error;
                 console.warn('[Muapi] Poll attempt failed, retrying...', error.message);
             }
         }

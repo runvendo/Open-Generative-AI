@@ -10,6 +10,30 @@ const VENDO_API_BASE = (typeof process !== 'undefined' && process.env?.NEXT_PUBL
 const BASE_URL = VENDO_PROXY_BASE || 'https://api.muapi.ai';
 const IS_VENDO_PROXY = Boolean(VENDO_PROXY_BASE);
 
+// Permanent failures (e.g. moderation rejections) must stop polling
+// immediately — the catch below only rethrows transient errors on the
+// final attempt.
+function terminalError(message) {
+    const error = new Error(`Generation failed: ${message || 'Unknown error'}`);
+    error.terminal = true;
+    return error;
+}
+
+// MuAPI reports moderation rejections as 4xx with the prediction status in
+// the body, usually nested under `detail`. A failed/error status is
+// terminal; anything else (including unparseable bodies) stays retryable.
+function pollFailureError(httpStatus, errText) {
+    try {
+        const body = JSON.parse(errText);
+        const detail = (body.detail && typeof body.detail === 'object') ? body.detail : body;
+        const status = detail.status?.toLowerCase();
+        if (status === 'failed' || status === 'error') return terminalError(detail.error || body.error);
+    } catch {
+        // Unparseable body — treat as transient.
+    }
+    return new Error(`Poll Failed: ${httpStatus} - ${errText.slice(0, 100)}`);
+}
+
 async function pollForResult(requestId, key, maxAttempts = 900, interval = 2000) {
     const pollUrl = `${BASE_URL}/api/v1/predictions/${requestId}/result`;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -21,14 +45,14 @@ async function pollForResult(requestId, key, maxAttempts = 900, interval = 2000)
             if (!response.ok) {
                 const errText = await response.text();
                 if (response.status >= 500) continue;
-                throw new Error(`Poll Failed: ${response.status} - ${errText.slice(0, 100)}`);
+                throw pollFailureError(response.status, errText);
             }
             const data = await response.json();
             const status = data.status?.toLowerCase();
             if (status === 'completed' || status === 'succeeded' || status === 'success') return data;
-            if (status === 'failed' || status === 'error') throw new Error(`Generation failed: ${data.error || 'Unknown error'}`);
+            if (status === 'failed' || status === 'error') throw terminalError(data.error);
         } catch (error) {
-            if (attempt === maxAttempts) throw error;
+            if (error.terminal || attempt === maxAttempts) throw error;
         }
     }
     throw new Error('Generation timed out after polling.');

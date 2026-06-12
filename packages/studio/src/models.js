@@ -182,10 +182,8 @@ export const t2iModels = [
           "1:1",
           "4:3",
           "3:4",
-          "3:2",
-          "2:3",
           "21:9",
-          "9:21"
+          "16:21"
         ],
         "title": "Aspect Ratio",
         "name": "aspect_ratio",
@@ -2024,13 +2022,13 @@ export const t2iModels = [
       "aspect_ratio": {
         "enum": [
           "1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5",
-          "5:4", "8:1", "9:16", "16:9", "21:9", "auto"
+          "5:4", "8:1", "9:16", "16:9", "21:9", "Auto"
         ],
         "title": "Aspect Ratio",
         "name": "aspect_ratio",
         "type": "string",
         "description": "The aspect ratio of the generated image.",
-        "default": "auto"
+        "default": "Auto"
       },
       "resolution": {
         "enum": ["1k", "2k", "4k"],
@@ -2115,7 +2113,7 @@ export const t2vModels = [
     "name": "Seedance Lite",
     "inputs": {
       "prompt": { "type": "string", "title": "Prompt", "name": "prompt", "description": "The prompt to generate the video" },
-      "aspect_ratio": { "enum": ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "9:21"], "title": "Aspect Ratio", "name": "aspect_ratio", "type": "string", "description": "Aspect ratio of the output video.", "default": "16:9" },
+      "aspect_ratio": { "enum": ["16:9", "9:16", "1:1", "4:3", "3:4", "9:21"], "title": "Aspect Ratio", "name": "aspect_ratio", "type": "string", "description": "Aspect ratio of the output video.", "default": "16:9" },
       "duration": { "title": "Duration", "name": "duration", "type": "int", "description": "The duration of the generated video in seconds", "default": 5 },
       "resolution": { "enum": ["480p", "720p", "1080p"], "title": "Resolution", "name": "resolution", "type": "string", "description": "The resolution of the generated video.", "default": "480p" }
     }
@@ -2125,7 +2123,7 @@ export const t2vModels = [
     "name": "Seedance Pro",
     "inputs": {
       "prompt": { "type": "string", "title": "Prompt", "name": "prompt", "description": "The prompt to generate the video" },
-      "aspect_ratio": { "enum": ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9", "9:21"], "title": "Aspect Ratio", "name": "aspect_ratio", "type": "string", "description": "Aspect ratio of the output video.", "default": "16:9" },
+      "aspect_ratio": { "enum": ["16:9", "9:16", "1:1", "4:3", "3:4", "21:9"], "title": "Aspect Ratio", "name": "aspect_ratio", "type": "string", "description": "Aspect ratio of the output video.", "default": "16:9" },
       "duration": { "title": "Duration", "name": "duration", "type": "int", "description": "The duration of the generated video in seconds", "default": 5 },
       "resolution": { "enum": ["480p", "720p", "1080p"], "title": "Resolution", "name": "resolution", "type": "string", "description": "The resolution of the generated video.", "default": "480p" }
     }
@@ -2447,7 +2445,7 @@ export const t2vModels = [
     "inputs": {
       "prompt": { "type": "string", "title": "Prompt", "name": "prompt", "description": "The prompt to generate the video" },
       "aspect_ratio": { "enum": ["16:9", "9:16"], "title": "Aspect Ratio", "name": "aspect_ratio", "type": "string", "description": "Aspect ratio of the output video.", "default": "16:9" },
-      "duration": { "enum": [10, 15], "title": "Duration", "name": "duration", "type": "int", "description": "The duration of the generated video in seconds", "default": 10 }
+      "duration": { "enum": [4, 8, 12, 16, 20], "title": "Duration", "name": "duration", "type": "int", "description": "The duration of the generated video in seconds", "default": 8 }
     }
   },
   {
@@ -2456,7 +2454,7 @@ export const t2vModels = [
     "inputs": {
       "prompt": { "type": "string", "title": "Prompt", "name": "prompt", "description": "The prompt to generate the video" },
       "aspect_ratio": { "enum": ["16:9", "9:16"], "title": "Aspect Ratio", "name": "aspect_ratio", "type": "string", "description": "Aspect ratio of the output video.", "default": "16:9" },
-      "duration": { "enum": [10, 15, 25], "title": "Duration", "name": "duration", "type": "int", "description": "The duration of the generated video in seconds. Currently 25 seconds supports 720p only.", "default": 10 },
+      "duration": { "enum": [4, 8, 12, 16, 20], "title": "Duration", "name": "duration", "type": "int", "description": "The duration of the generated video in seconds", "default": 8 },
       "resolution": { "enum": ["720p", "1080p"], "title": "Resolution", "name": "resolution", "type": "string", "description": "The resolution of the generated video.", "default": "720p" }
     }
   },
@@ -4731,13 +4729,13 @@ export const i2iModels = [
       "aspect_ratio": {
         "enum": [
           "1:1", "1:4", "1:8", "2:3", "3:2", "3:4", "4:1", "4:3", "4:5",
-          "5:4", "8:1", "9:16", "16:9", "21:9", "auto"
+          "5:4", "8:1", "9:16", "16:9", "21:9", "Auto"
         ],
         "title": "Aspect Ratio",
         "name": "aspect_ratio",
         "type": "string",
         "description": "The aspect ratio of the generated image.",
-        "default": "auto"
+        "default": "Auto"
       },
       "resolution": {
         "enum": ["1k", "2k", "4k"],
@@ -4900,8 +4898,7 @@ export const i2vModels = [
         "description": "Aspect ratio of the output video.",
         "enum": [
           "16:9",
-          "9:16",
-          "1:1"
+          "9:16"
         ],
         "default": "16:9"
       },
@@ -5020,8 +5017,7 @@ export const i2vModels = [
         "description": "Aspect ratio of the output video.",
         "enum": [
           "16:9",
-          "9:16",
-          "1:1"
+          "9:16"
         ],
         "default": "16:9"
       },
@@ -5102,8 +5098,7 @@ export const i2vModels = [
         "description": "Aspect ratio of the output video.",
         "enum": [
           "16:9",
-          "9:16",
-          "1:1"
+          "9:16"
         ],
         "default": "16:9"
       },
@@ -5865,9 +5860,9 @@ export const i2vModels = [
         "name": "resolution",
         "description": "The resolution of the generated video.",
         "enum": [
-          "1080p"
+          "1080P"
         ],
-        "default": "1080p"
+        "default": "1080P"
       }
     }
   },
@@ -6318,10 +6313,13 @@ export const i2vModels = [
         "name": "duration",
         "description": "The duration of the generated video in seconds",
         "enum": [
-          10,
-          15
+          4,
+          8,
+          12,
+          16,
+          20
         ],
-        "default": 10
+        "default": 8
       },
       "remove_watermark": {
         "type": "boolean",
@@ -6383,13 +6381,15 @@ export const i2vModels = [
         "type": "int",
         "title": "Duration",
         "name": "duration",
-        "description": "The duration of the generated video in seconds. Currently 25 seconds supports 720p only.",
+        "description": "The duration of the generated video in seconds",
         "enum": [
-          10,
-          15,
-          25
+          4,
+          8,
+          12,
+          16,
+          20
         ],
-        "default": 10
+        "default": 8
       },
       "resolution": {
         "type": "string",
